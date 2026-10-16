@@ -3,25 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NDent offer</title>
+<title>Ndent Offer</title>
 <meta name="description" content="Interactive flipbook">
 <style>
   /* ============================================================
      SETTINGS — the only things you normally need to change
      ============================================================ */
   :root {
-    --bg: #17181c;          /* page background */
-    --bar: #22242a;         /* toolbar background */
-    --ink: #e9eaee;         /* toolbar text/icons */
-    --muted: #8b8f9a;
-    --accent: #2f5bd3;      /* progress bar + focus colour */
+    --bg-1: #4a4f5c;        /* background gradient, centre */
+    --bg-2: #1c1e24;        /* background gradient, edges */
+    --bar: rgba(22,23,28,.92); /* toolbar background */
+    --panel: #24262d;       /* thumbnails / sidebar background */
+    --ink: #eceef2;         /* toolbar text/icons */
+    --muted: #9a9fab;
+    --accent: #ff7a1a;      /* progress bar, highlights, focus */
   }
   /* ============================================================ */
 
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: var(--bg);
+    background: radial-gradient(ellipse at center, var(--bg-1) 0%, var(--bg-2) 75%) fixed var(--bg-2);
     color: var(--ink);
     font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     display: flex; flex-direction: column;
@@ -29,100 +31,192 @@
     -webkit-tap-highlight-color: transparent;
   }
   header {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; padding: 12px 16px; min-height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px 16px 4px; min-height: 44px;
   }
-  header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .01em;
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .02em; opacity: .9;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  header .tools { display: flex; gap: 4px; flex-shrink: 0; }
 
-  #stage { flex: 1; position: relative; min-height: 0; padding: 8px 16px; display: flex; align-items: center; }
-  #book { width: 100%; height: 100%; flex-shrink: 0; min-width: 0 !important; max-width: none !important; }
+  #stage { flex: 1; position: relative; min-height: 0; padding: 16px 80px; display: flex; align-items: center; justify-content: center; }
+  #book { width: 100%; height: 100%; flex-shrink: 0; min-width: 0 !important; max-width: none !important;
+    filter: drop-shadow(0 18px 30px rgba(0,0,0,.45)); }
   #book .stf__wrapper { padding-bottom: 0 !important; height: 100%; }
   .page { background: #fff; overflow: hidden; }
   .page img { width: 100%; height: 100%; display: block; object-fit: contain;
     user-select: none; -webkit-user-drag: none; }
-  .page.loading::after {
+  /* soft gutter shading where the pages meet, like a real binding */
+  .page.--left::after, .page.--right::after {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 6%; pointer-events: none; }
+  .page.--left::after  { right: 0; background: linear-gradient(to left, rgba(0,0,0,.18), transparent); }
+  .page.--right::after { left: 0;  background: linear-gradient(to right, rgba(0,0,0,.18), transparent); }
+  .page.loading::before {
     content: ""; position: absolute; inset: 0; margin: auto; width: 28px; height: 28px;
     border: 3px solid #ddd; border-top-color: var(--accent); border-radius: 50%;
     animation: spin .8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  footer {
-    display: flex; align-items: center; justify-content: center; gap: 14px;
-    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  /* big side arrows */
+  .side { position: absolute; top: 50%; transform: translateY(-50%); z-index: 3;
+    width: 52px; height: 52px; border-radius: 50%; background: rgba(0,0,0,.35); }
+  .side:hover { background: rgba(0,0,0,.6); }
+  .side svg { width: 26px; height: 26px; }
+  #sidePrev { left: 16px; } #sideNext { right: 16px; }
+
+  /* bottom toolbar */
+  #toolbar {
+    position: relative; z-index: 6; background: var(--bar);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
-  #counter { min-width: 72px; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
-  #progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: transparent; }
+  #toolbar .group { display: flex; align-items: center; gap: 2px; }
+  #toolbar .nav { position: absolute; left: 50%; transform: translateX(-50%); }
+  #pageBox { display: flex; align-items: center; gap: 6px; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0 6px; }
+  #pageInput { width: 64px; height: 30px; text-align: center; border-radius: 6px; border: 1px solid #3a3d46;
+    background: #15161a; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
+  #pageInput:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  #progress { position: absolute; left: 0; right: 0; top: 0; height: 3px; }
   #progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
 
   button {
     appearance: none; border: 0; background: transparent; color: var(--ink);
-    width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
-    display: grid; place-items: center;
+    width: 40px; height: 40px; border-radius: 8px; cursor: pointer;
+    display: grid; place-items: center; flex-shrink: 0;
   }
-  button:hover { background: var(--bar); }
+  button:hover { background: rgba(255,255,255,.08); }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   button:disabled { opacity: .3; cursor: default; background: transparent; }
+  button.on { color: var(--accent); }
   button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8;
     stroke-linecap: round; stroke-linejoin: round; }
-  footer button { background: var(--bar); }
+  a.btn { display: contents; }
 
   #status { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 16px; }
   #status[hidden] { display: none; }
 
-  /* Zoom overlay: full-resolution page, pan by scrolling / dragging */
+  /* thumbnails strip */
+  #thumbs { position: fixed; left: 0; right: 0; bottom: var(--tb-h, 52px); z-index: 5; background: var(--panel);
+    display: flex; gap: 14px; overflow-x: auto; padding: 14px 16px 10px;
+    transform: translateY(110%); transition: transform .25s ease; box-shadow: 0 -8px 24px rgba(0,0,0,.35); }
+  #thumbs.open { transform: none; }
+  .thumb { flex: 0 0 auto; cursor: pointer; text-align: center; color: var(--muted); font-size: 12px; border: 0; background: none; width: auto; height: auto; padding: 0; display: block; }
+  .thumb .imgs { display: flex; height: 110px; border: 2px solid transparent; border-radius: 3px; }
+  .thumb img { height: 100%; aspect-ratio: var(--ar); background: #fff; object-fit: contain; display: block; }
+  .thumb.current .imgs { border-color: var(--accent); }
+  .thumb.current { color: var(--ink); }
+  .thumb span { display: block; margin-top: 4px; }
+
+  /* sidebar: contents + search */
+  #sidebar { position: fixed; top: 0; bottom: var(--tb-h, 52px); left: 0; width: min(320px, 88vw); z-index: 7;
+    background: var(--panel); transform: translateX(-105%); transition: transform .25s ease;
+    display: flex; flex-direction: column; box-shadow: 8px 0 24px rgba(0,0,0,.35); }
+  #sidebar.open { transform: none; }
+  #sidebar .tabs { display: flex; align-items: center; border-bottom: 1px solid #353841; padding: 0 4px 0 8px; }
+  #sidebar .tab { width: auto; padding: 0 12px; height: 44px; border-radius: 0; color: var(--muted); border-bottom: 2px solid transparent; }
+  #sidebar .tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+  #sidebar .tab[hidden] { display: none; }
+  #sidebar .closeSide { margin-left: auto; }
+  #sidebar .pane { flex: 1; overflow-y: auto; padding: 12px; }
+  #sidebar .pane[hidden] { display: none; }
+  #searchForm { display: flex; gap: 6px; margin-bottom: 10px; }
+  #searchInput { flex: 1; height: 36px; border-radius: 6px; border: 1px solid #3a3d46; background: #15161a; color: var(--ink); padding: 0 10px; font: inherit; }
+  #searchInput:focus { outline: 2px solid var(--accent); }
+  .result, .toc-item { display: block; width: 100%; height: auto; text-align: left; padding: 8px 10px; border-radius: 6px; color: var(--ink); line-height: 1.4; }
+  .result small, .toc-item small { color: var(--muted); }
+  .result mark { background: var(--accent); color: #111; border-radius: 2px; padding: 0 1px; }
+  .toc-item { display: flex; justify-content: space-between; gap: 10px; }
+  .note { color: var(--muted); padding: 4px 2px; }
+
+  /* zoom overlay */
   #zoom { position: fixed; inset: 0; background: rgba(10,10,12,.96); z-index: 10;
     overflow: auto; display: none; cursor: grab; touch-action: pan-x pan-y; }
   #zoom.open { display: block; }
-  #zoom img { display: block; width: 200%; max-width: none; margin: 0 auto; }
-  #zoom .close { position: fixed; top: 12px; right: 12px; background: var(--bar); z-index: 11; }
-  @media (min-width: 900px) { #zoom img { width: 160%; } }
+  #zoom .canvas { display: flex; width: var(--zw, 160%); margin: 0 auto; padding: 60px 0; }
+  #zoom .canvas img { display: block; width: 100%; min-width: 0; flex: 1; background: #fff; }
+  #zoom .ctrl { position: fixed; top: 12px; right: 12px; z-index: 11; display: flex; gap: 6px; }
+  #zoom .ctrl button { background: #2a2c33; }
 
-  .hint { color: var(--muted); font-size: 12px; }
-  @media (max-width: 520px) { .hint { display: none; } header h1 { font-size: 14px; } }
+  #toast { position: fixed; left: 50%; bottom: 80px; transform: translate(-50%, 20px); opacity: 0;
+    background: #111; color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 20; transition: .25s; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 760px) {
+    #stage { padding: 8px 12px; }
+    .side { display: none; }
+    .wide { display: none !important; }
+    #toolbar .nav { position: static; transform: none; }
+    #toolbar { overflow-x: auto; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1 id="title">Loading…</h1>
-  <div class="tools">
-    <button id="btnZoom" title="Zoom into this page" aria-label="Zoom">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5M11 8v6M8 11h6"/></svg>
-    </button>
-    <a id="btnDownload" download><button title="Download PDF" aria-label="Download PDF" tabindex="-1">
-      <svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
-    </button></a>
-    <button id="btnFull" title="Fullscreen" aria-label="Fullscreen">
-      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
-    </button>
-  </div>
-</header>
+<header><h1 id="title">Loading…</h1></header>
 
 <div id="stage">
   <div id="book"></div>
+  <button class="side" id="sidePrev" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button class="side" id="sideNext" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
   <div id="status">Preparing pages…</div>
 </div>
 
-<footer>
-  <button id="btnPrev" aria-label="Previous page" disabled>
-    <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
-  </button>
-  <span id="counter">– / –</span>
-  <button id="btnNext" aria-label="Next page">
-    <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
-  </button>
-  <span class="hint">Drag a corner, click, or use ← →</span>
+<div id="thumbs" aria-label="Page thumbnails"></div>
+
+<aside id="sidebar" aria-label="Contents and search">
+  <div class="tabs">
+    <button class="tab" id="tabToc" data-pane="paneToc" hidden>Contents</button>
+    <button class="tab active" id="tabSearch" data-pane="paneSearch">Search</button>
+    <button class="closeSide" aria-label="Close panel"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="pane" id="paneToc" hidden></div>
+  <div class="pane" id="paneSearch">
+    <form id="searchForm"><input id="searchInput" type="search" placeholder="Search this document" autocomplete="off">
+      <button type="submit" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></svg></button></form>
+    <div id="results"></div>
+  </div>
+</aside>
+
+<footer id="toolbar">
   <div id="progress"><i></i></div>
+  <div class="group">
+    <button id="btnThumbs" title="Thumbnails" aria-label="Thumbnails">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></button>
+    <button id="btnSide" title="Contents & search" aria-label="Contents and search">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="17.5" cy="16.5" r="2.5"/><path d="M19.5 18.5L21 20"/></svg></button>
+  </div>
+  <div class="group nav">
+    <button id="btnFirst" class="wide" title="First page" aria-label="First page"><svg viewBox="0 0 24 24"><path d="M18 5l-7 7 7 7M6 5v14"/></svg></button>
+    <button id="btnPrev" title="Previous page" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <form id="pageBox"><input id="pageInput" inputmode="numeric" aria-label="Go to page"><span id="pageTotal">/ –</span></form>
+    <button id="btnNext" title="Next page" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    <button id="btnLast" class="wide" title="Last page" aria-label="Last page"><svg viewBox="0 0 24 24"><path d="M6 5l7 7-7 7M18 5v14"/></svg></button>
+  </div>
+  <div class="group">
+    <button id="btnZoom" title="Zoom" aria-label="Zoom">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5M11 8v6M8 11h6"/></svg></button>
+    <button id="btnPlay" class="wide" title="Autoplay" aria-label="Autoplay">
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+    <button id="btnSound" class="wide" title="Page-flip sound" aria-label="Page-flip sound">
+      <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path class="wave" d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg></button>
+    <button id="btnShare" title="Share" aria-label="Share">
+      <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg></button>
+    <a id="btnDownload" class="btn" download><button title="Download PDF" aria-label="Download PDF" tabindex="-1">
+      <svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button></a>
+    <button id="btnFull" title="Fullscreen" aria-label="Fullscreen">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  </div>
 </footer>
 
 <div id="zoom" role="dialog" aria-label="Zoomed page">
-  <button class="close" aria-label="Close zoom">
-    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-  </button>
-  <img alt="">
+  <div class="ctrl">
+    <button id="zoomOut" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
+    <button id="zoomIn" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg></button>
+    <button class="close" aria-label="Close zoom"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="canvas"></div>
 </div>
+
+<div id="toast"></div>
 
 <script src="lib/pdf.min.js"></script>
 <script src="lib/page-flip.browser.js"></script>
@@ -132,9 +226,12 @@
    ============================================================ */
 const CONFIG = {
   pdf: "document.pdf",   // the PDF in this folder
-  title: "NDent offer",  // leave "" to use the PDF's own title
-  layout: "single",      // "single" = one page at a time, "spread" = two pages side by side on wide screens
-  flipTime: 700          // page-turn speed in ms
+  title: "Ndent Offer",   // leave "" to use the PDF's own title
+  layout: "auto",        // "auto" = spread for portrait pages, single for landscape
+                         // "single" = one page at a time, "spread" = two pages side by side on wide screens
+  flipTime: 800,         // page-turn speed in ms
+  sound: true,           // page-flip sound on by default
+  autoplaySeconds: 4     // delay between pages in autoplay
 };
 /* ============================================================ */
 
@@ -142,14 +239,17 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "lib/pdf.worker.min.js";
 
 const $ = (id) => document.getElementById(id);
 const bookEl = $("book"), statusEl = $("status");
-let flip, total = 0, pageUrls = [];
+let flip, pdf, total = 0, single = false, pageUrls = [], shells = [], thumbEls = [];
 
 $("btnDownload").href = CONFIG.pdf;
+const syncBarHeight = () => document.documentElement.style.setProperty("--tb-h", $("toolbar").offsetHeight + "px");
+syncBarHeight();
 
 (async function init() {
   try {
-    const pdf = await pdfjsLib.getDocument(CONFIG.pdf).promise;
+    pdf = await pdfjsLib.getDocument(CONFIG.pdf).promise;
     total = pdf.numPages;
+    $("pageTotal").textContent = "/ " + total;
 
     let title = CONFIG.title;
     if (!title) {
@@ -163,13 +263,13 @@ $("btnDownload").href = CONFIG.pdf;
     const first = await pdf.getPage(1);
     const vp1 = first.getViewport({ scale: 1 });
     const w = vp1.width, h = vp1.height;
+    single = CONFIG.layout === "single" || (CONFIG.layout === "auto" && w > h);
 
     // Render resolution: sharp on retina, capped to keep phones happy.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const renderW = Math.round(Math.min(2400, Math.max(1400, window.innerWidth * dpr * 1.2)));
+    const renderW = Math.round(Math.min(2000, Math.max(1200, window.innerWidth * dpr * (single ? 1.2 : 0.7))));
 
     // Empty page shells first so the book appears immediately.
-    const shells = [];
     for (let i = 1; i <= total; i++) {
       const d = document.createElement("div");
       d.className = "page loading";
@@ -180,8 +280,8 @@ $("btnDownload").href = CONFIG.pdf;
       bookEl.appendChild(d);
       shells.push(d);
     }
+    buildThumbs(w / h);
 
-    const single = CONFIG.layout !== "spread";
     flip = new St.PageFlip(bookEl, {
       width: Math.round(w), height: Math.round(h),
       size: "stretch",
@@ -189,26 +289,42 @@ $("btnDownload").href = CONFIG.pdf;
       maxWidth: 4000, minHeight: 100, maxHeight: 4000,
       usePortrait: true,
       showCover: !single,
-      maxShadowOpacity: 0.4,
+      drawShadow: true,
+      maxShadowOpacity: 0.6,
       flippingTime: CONFIG.flipTime,
       mobileScrollSupport: false,
       autoSize: true
     });
-    // Size the book to the page shape so it stays centred while flipping.
+    // Size the book box to exactly the page(s) it shows. PageFlip centres pages inside a
+    // wider box with an offset, and hard pages (the cover) mis-apply that offset mid-flip,
+    // so the cover drifts away from the spine. No spare width = no offset = no gap.
     const fit = () => {
       const st = $("stage"), cs = getComputedStyle(st);
       const sw = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const sh = st.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-      const perRow = single ? 1 : (sw >= 600 ? 2 : 1);
-      bookEl.style.height = Math.floor(Math.min(sh, (sw / perRow) * h / w)) + "px";
+      let perRow = 1, pw = Math.floor(Math.min(sw, sh * w / h));
+      if (!single) {
+        const pw2 = Math.floor(Math.min(sw / 2, sh * w / h));
+        if (pw2 * 2 >= 600) { perRow = 2; pw = pw2; } // PageFlip goes landscape at >= 2 × minWidth
+      }
+      bookEl.style.width = pw * perRow + "px";
+      bookEl.style.height = Math.ceil(pw * h / w) + "px";
     };
     fit();
-    window.addEventListener("resize", () => { fit(); flip && flip.update(); });
+    window.addEventListener("resize", () => { syncBarHeight(); fit(); flip && flip.update(); });
     flip.loadFromHTML(shells);
+    fit(); flip.update(); // loadFromHTML resets the box to width:100%
     flip.on("flip", update);
     flip.on("changeOrientation", update);
+    flip.on("changeState", (e) => { if (e.data === "flipping") playFlipSound(); });
     statusEl.hidden = true;
+
+    // Deep link: #page=5 opens on page 5.
+    const m = location.hash.match(/page=(\d+)/);
+    if (m) flip.turnToPage(Math.min(Math.max(+m[1], 1), total) - 1);
     update();
+
+    loadOutline();
 
     // Render pages in order (first pages appear first).
     for (let i = 1; i <= total; i++) {
@@ -219,11 +335,12 @@ $("btnDownload").href = CONFIG.pdf;
       const ctx = canvas.getContext("2d");
       ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
-      const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+      const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.88));
       const url = URL.createObjectURL(blob);
       pageUrls[i - 1] = url;
       shells[i - 1].querySelector("img").src = url;
       shells[i - 1].classList.remove("loading");
+      document.querySelectorAll('img[data-thumb="' + i + '"]').forEach((t) => (t.src = url));
       canvas.width = canvas.height = 0; // free memory
       page.cleanup();
     }
@@ -234,52 +351,282 @@ $("btnDownload").href = CONFIG.pdf;
   }
 })();
 
-function update() {
-  if (!flip) return;
+/* ---------- navigation ---------- */
+const isPortrait = () => flip.getOrientation() === "portrait";
+// Pages shown at once: [i] or [i, i+1] in a spread (cover and back stand alone).
+function visiblePages() {
   const i = flip.getCurrentPageIndex();
-  const portrait = flip.getOrientation() === "portrait";
-  let label = String(i + 1);
-  if (!portrait && i > 0 && i + 1 < total) label = (i + 1) + "–" + (i + 2);
-  $("counter").textContent = label + " / " + total;
-  $("btnPrev").disabled = i <= 0;
-  $("btnNext").disabled = portrait ? i >= total - 1 : i >= total - (total % 2 ? 1 : 2);
-  $("progress").firstElementChild.style.width = ((i + 1) / total * 100) + "%";
+  if (isPortrait() || i === 0 || i + 1 >= total) return [i];
+  return [i, i + 1];
+}
+function goTo(n) {
+  if (!flip) return;
+  n = Math.min(Math.max(n, 1), total);
+  const cur = visiblePages();
+  if (cur.includes(n - 1)) return;
+  flip.flip(n - 1);
 }
 
-$("btnPrev").onclick = () => flip && flip.flipPrev();
-$("btnNext").onclick = () => flip && flip.flipNext();
+function update() {
+  if (!flip) return;
+  const pages = visiblePages(), i = pages[0];
+  const label = pages.map((p) => p + 1).join("-");
+  $("pageInput").value = label;
+  const atStart = i <= 0, atEnd = pages[pages.length - 1] >= total - 1;
+  $("btnPrev").disabled = $("btnFirst").disabled = $("sidePrev").disabled = atStart;
+  $("btnNext").disabled = $("btnLast").disabled = $("sideNext").disabled = atEnd;
+  $("sidePrev").style.visibility = atStart ? "hidden" : "";
+  $("sideNext").style.visibility = atEnd ? "hidden" : "";
+  $("progress").firstElementChild.style.width = ((pages[pages.length - 1] + 1) / total * 100) + "%";
+  history.replaceState(null, "", "#page=" + (i + 1));
+  thumbEls.forEach((t) => {
+    const on = t.pages.some((p) => pages.includes(p - 1));
+    t.el.classList.toggle("current", on);
+    if (on && $("thumbs").classList.contains("open")) t.el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  });
+  if (autoplay && atEnd) toggleAutoplay(false);
+}
+
+const next = () => flip && flip.flipNext(), prev = () => flip && flip.flipPrev();
+$("btnPrev").onclick = $("sidePrev").onclick = prev;
+$("btnNext").onclick = $("sideNext").onclick = next;
+$("btnFirst").onclick = () => goTo(1);
+$("btnLast").onclick = () => goTo(total);
+$("pageBox").onsubmit = (e) => {
+  e.preventDefault();
+  const n = parseInt($("pageInput").value, 10);
+  if (n) goTo(n); else update();
+  $("pageInput").blur();
+};
+$("pageInput").onfocus = function () { this.select(); };
+$("pageInput").onblur = () => update();
 
 document.addEventListener("keydown", (e) => {
   if (!flip) return;
-  if ($("zoom").classList.contains("open")) { if (e.key === "Escape") closeZoom(); return; }
-  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); flip.flipNext(); }
-  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); flip.flipPrev(); }
-  if (e.key === "Home") flip.flip(0);
-  if (e.key === "End") flip.flip(total - 1);
+  if (e.key === "Escape") { closeZoom(); closePanels(); return; }
+  if ($("zoom").classList.contains("open") || e.target.closest("input")) return;
+  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); next(); }
+  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
+  if (e.key === "Home") goTo(1);
+  if (e.key === "End") goTo(total);
 });
 
+/* ---------- thumbnails ---------- */
+function buildThumbs(ar) {
+  const box = $("thumbs");
+  box.style.setProperty("--ar", ar);
+  // Group like the book: cover alone, then pairs, in spread mode.
+  const groups = [];
+  if (single) for (let i = 1; i <= total; i++) groups.push([i]);
+  else {
+    groups.push([1]);
+    for (let i = 2; i <= total; i += 2) groups.push(i + 1 <= total ? [i, i + 1] : [i]);
+  }
+  groups.forEach((g) => {
+    const el = document.createElement("button");
+    el.className = "thumb";
+    el.innerHTML = '<div class="imgs">' + g.map((p) => '<img data-thumb="' + p + '" alt="">').join("") +
+      "</div><span>" + g.join("-") + "</span>";
+    el.onclick = () => goTo(g[0]);
+    box.appendChild(el);
+    thumbEls.push({ el, pages: g });
+  });
+}
+$("btnThumbs").onclick = () => {
+  const open = $("thumbs").classList.toggle("open");
+  $("btnThumbs").classList.toggle("on", open);
+  if (open) { $("sidebar").classList.remove("open"); $("btnSide").classList.remove("on"); update(); }
+};
+
+/* ---------- sidebar: contents + search ---------- */
+function openSidebar(paneId) {
+  $("sidebar").classList.add("open");
+  $("btnSide").classList.add("on");
+  $("thumbs").classList.remove("open"); $("btnThumbs").classList.remove("on");
+  if (paneId) showPane(paneId);
+}
+function showPane(id) {
+  document.querySelectorAll("#sidebar .tab").forEach((t) => t.classList.toggle("active", t.dataset.pane === id));
+  document.querySelectorAll("#sidebar .pane").forEach((p) => (p.hidden = p.id !== id));
+  if (id === "paneSearch") setTimeout(() => $("searchInput").focus(), 260);
+}
+function closePanels() {
+  $("sidebar").classList.remove("open"); $("btnSide").classList.remove("on");
+  $("thumbs").classList.remove("open"); $("btnThumbs").classList.remove("on");
+}
+$("btnSide").onclick = () => $("sidebar").classList.contains("open") ? closePanels() : openSidebar();
+document.querySelector("#sidebar .closeSide").onclick = closePanels;
+document.querySelectorAll("#sidebar .tab").forEach((t) => (t.onclick = () => showPane(t.dataset.pane)));
+
+async function loadOutline() {
+  try {
+    const outline = await pdf.getOutline();
+    if (!outline || !outline.length) return;
+    const pane = $("paneToc");
+    const add = async (items, depth) => {
+      for (const it of items) {
+        let page = null;
+        try {
+          const dest = typeof it.dest === "string" ? await pdf.getDestination(it.dest) : it.dest;
+          if (dest) page = (await pdf.getPageIndex(dest[0])) + 1;
+        } catch (e) {}
+        const b = document.createElement("button");
+        b.className = "toc-item";
+        b.style.paddingLeft = 10 + depth * 16 + "px";
+        b.innerHTML = "<span></span><small>" + (page || "") + "</small>";
+        b.firstChild.textContent = it.title;
+        if (page) b.onclick = () => goTo(page);
+        pane.appendChild(b);
+        if (it.items && it.items.length) await add(it.items, depth + 1);
+      }
+    };
+    await add(outline, 0);
+    $("tabToc").hidden = false;
+    showPane("paneToc");
+  } catch (e) { console.warn(e); }
+}
+
+let pageText = null;
+async function getPageText() {
+  if (pageText) return pageText;
+  const out = [];
+  for (let i = 1; i <= total; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    out.push(tc.items.map((t) => t.str).join(" ").replace(/\s+/g, " "));
+  }
+  return (pageText = out);
+}
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+$("searchForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const q = $("searchInput").value.trim(), res = $("results");
+  if (!q || !pdf) return;
+  res.innerHTML = '<div class="note">Searching…</div>';
+  const texts = await getPageText();
+  const ql = q.toLowerCase(), hits = [];
+  texts.forEach((t, idx) => {
+    const tl = t.toLowerCase();
+    let at = tl.indexOf(ql), n = 0;
+    while (at !== -1 && n < 3) {
+      const s = Math.max(0, at - 40), e2 = Math.min(t.length, at + q.length + 60);
+      hits.push({ page: idx + 1, html: (s ? "…" : "") + esc(t.slice(s, at)) + "<mark>" + esc(t.slice(at, at + q.length)) +
+        "</mark>" + esc(t.slice(at + q.length, e2)) + (e2 < t.length ? "…" : "") });
+      at = tl.indexOf(ql, at + q.length); n++;
+    }
+  });
+  res.innerHTML = hits.length ? "" : '<div class="note">No results for "' + esc(q) + '".' +
+    (texts.every((t) => !t.trim()) ? " This PDF has no searchable text (pages are images)." : "") + "</div>";
+  hits.forEach((h) => {
+    const b = document.createElement("button");
+    b.className = "result";
+    b.innerHTML = "<small>Page " + h.page + "</small><br>" + h.html;
+    b.onclick = () => { goTo(h.page); if (window.innerWidth < 760) closePanels(); };
+    res.appendChild(b);
+  });
+};
+
+/* ---------- autoplay ---------- */
+let autoplay = null;
+const PLAY_ICON = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE_ICON = '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
+function toggleAutoplay(on) {
+  on = on === undefined ? !autoplay : on;
+  clearInterval(autoplay); autoplay = null;
+  if (on && flip) {
+    if (visiblePages().includes(total - 1)) goTo(1);
+    autoplay = setInterval(next, CONFIG.autoplaySeconds * 1000);
+  }
+  $("btnPlay").innerHTML = on ? PAUSE_ICON : PLAY_ICON;
+  $("btnPlay").classList.toggle("on", !!on);
+}
+$("btnPlay").onclick = () => toggleAutoplay();
+
+/* ---------- page-flip sound (synthesised, no audio file needed) ---------- */
+let soundOn = CONFIG.sound, audioCtx = null;
+try { const s = localStorage.getItem("flipbook-sound"); if (s !== null) soundOn = s === "1"; } catch (e) {}
+function renderSoundBtn() {
+  $("btnSound").classList.toggle("on", soundOn);
+  $("btnSound").querySelector(".wave").style.display = soundOn ? "" : "none";
+}
+renderSoundBtn();
+$("btnSound").onclick = () => {
+  soundOn = !soundOn; renderSoundBtn();
+  try { localStorage.setItem("flipbook-sound", soundOn ? "1" : "0"); } catch (e) {}
+};
+function playFlipSound() {
+  if (!soundOn) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const dur = 0.45, sr = audioCtx.sampleRate, buf = audioCtx.createBuffer(1, sr * dur, sr), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / d.length;
+      d[i] = (Math.random() * 2 - 1) * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.6)), 2) * (1 - t);
+    }
+    const src = audioCtx.createBufferSource(); src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 0.8;
+    bp.frequency.setValueAtTime(900, audioCtx.currentTime);
+    bp.frequency.linearRampToValueAtTime(3200, audioCtx.currentTime + dur);
+    const g = audioCtx.createGain(); g.gain.value = 0.35;
+    src.connect(bp).connect(g).connect(audioCtx.destination);
+    src.start();
+  } catch (e) {}
+}
+
+/* ---------- share ---------- */
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2000);
+}
+$("btnShare").onclick = async () => {
+  const url = location.href;
+  if (navigator.share) { try { await navigator.share({ title: document.title, url }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(url); toast("Link to this page copied"); }
+  catch (e) { prompt("Copy this link:", url); }
+};
+
+/* ---------- fullscreen ---------- */
 $("btnFull").onclick = () => {
   const el = document.documentElement;
-  if (document.fullscreenElement) document.exitFullscreen();
+  if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
   else if (el.requestFullscreen) el.requestFullscreen();
   else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
 };
 
-// Zoom: show current page at full resolution; drag or scroll to pan.
-const zoom = $("zoom"), zoomImg = zoom.querySelector("img");
+/* ---------- zoom: current page(s) at full resolution; drag, scroll or +/- ---------- */
+const zoom = $("zoom"), zoomCanvas = zoom.querySelector(".canvas");
+let zoomLevel = 1.6;
+function setZoom(z) {
+  const cx = (zoom.scrollLeft + zoom.clientWidth / 2) / zoom.scrollWidth;
+  const cy = (zoom.scrollTop + zoom.clientHeight / 2) / zoom.scrollHeight;
+  zoomLevel = Math.min(4, Math.max(0.6, z));
+  zoomCanvas.style.setProperty("--zw", zoomLevel * 100 + "%");
+  zoom.scrollLeft = cx * zoom.scrollWidth - zoom.clientWidth / 2;
+  zoom.scrollTop = cy * zoom.scrollHeight - zoom.clientHeight / 2;
+}
 $("btnZoom").onclick = () => {
   if (!flip) return;
-  const url = pageUrls[flip.getCurrentPageIndex()];
-  if (!url) return;
-  zoomImg.src = url;
+  const urls = visiblePages().map((p) => pageUrls[p]).filter(Boolean);
+  if (!urls.length) return;
+  zoomCanvas.innerHTML = "";
+  urls.forEach((u) => { const im = new Image(); im.src = u; im.alt = ""; zoomCanvas.appendChild(im); });
+  zoomLevel = window.innerWidth < 760 ? 2 : (urls.length > 1 ? 1.4 : 1);
+  zoomCanvas.style.setProperty("--zw", zoomLevel * 100 + "%");
   zoom.classList.add("open");
   requestAnimationFrame(() => { zoom.scrollLeft = (zoom.scrollWidth - zoom.clientWidth) / 2; zoom.scrollTop = 0; });
 };
+$("zoomIn").onclick = () => setZoom(zoomLevel * 1.25);
+$("zoomOut").onclick = () => setZoom(zoomLevel / 1.25);
+zoom.addEventListener("wheel", (e) => {
+  if (!e.ctrlKey) return; // ctrl/pinch-to-zoom; plain wheel scrolls
+  e.preventDefault(); setZoom(zoomLevel * (e.deltaY < 0 ? 1.08 : 1 / 1.08));
+}, { passive: false });
 function closeZoom() { zoom.classList.remove("open"); }
 zoom.querySelector(".close").onclick = closeZoom;
 let drag = null;
 zoom.addEventListener("pointerdown", (e) => {
-  if (e.pointerType !== "mouse" || e.target.closest(".close")) return;
+  if (e.pointerType !== "mouse" || e.target.closest(".ctrl")) return;
   drag = { x: e.clientX, y: e.clientY, l: zoom.scrollLeft, t: zoom.scrollTop };
   zoom.style.cursor = "grabbing";
 });
