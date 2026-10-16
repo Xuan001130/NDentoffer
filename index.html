@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Social Media Proposal</title>
+<meta name="description" content="Interactive flipbook">
+<style>
+  /* ============================================================
+     SETTINGS — the only things you normally need to change
+     ============================================================ */
+  :root {
+    --bg: #17181c;          /* page background */
+    --bar: #22242a;         /* toolbar background */
+    --ink: #e9eaee;         /* toolbar text/icons */
+    --muted: #8b8f9a;
+    --accent: #2f5bd3;      /* progress bar + focus colour */
+  }
+  /* ============================================================ */
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 12px 16px; min-height: 52px;
+  }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .tools { display: flex; gap: 4px; flex-shrink: 0; }
+
+  #stage { flex: 1; position: relative; min-height: 0; padding: 8px 16px; display: flex; align-items: center; }
+  #book { width: 100%; height: 100%; flex-shrink: 0; min-width: 0 !important; max-width: none !important; }
+  #book .stf__wrapper { padding-bottom: 0 !important; height: 100%; }
+  .page { background: #fff; overflow: hidden; }
+  .page img { width: 100%; height: 100%; display: block; object-fit: contain;
+    user-select: none; -webkit-user-drag: none; }
+  .page.loading::after {
+    content: ""; position: absolute; inset: 0; margin: auto; width: 28px; height: 28px;
+    border: 3px solid #ddd; border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  #counter { min-width: 72px; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
+  #progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: transparent; }
+  #progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+
+  button {
+    appearance: none; border: 0; background: transparent; color: var(--ink);
+    width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  button:hover { background: var(--bar); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button:disabled { opacity: .3; cursor: default; background: transparent; }
+  button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8;
+    stroke-linecap: round; stroke-linejoin: round; }
+  footer button { background: var(--bar); }
+
+  #status { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 16px; }
+  #status[hidden] { display: none; }
+
+  /* Zoom overlay: full-resolution page, pan by scrolling / dragging */
+  #zoom { position: fixed; inset: 0; background: rgba(10,10,12,.96); z-index: 10;
+    overflow: auto; display: none; cursor: grab; touch-action: pan-x pan-y; }
+  #zoom.open { display: block; }
+  #zoom img { display: block; width: 200%; max-width: none; margin: 0 auto; }
+  #zoom .close { position: fixed; top: 12px; right: 12px; background: var(--bar); z-index: 11; }
+  @media (min-width: 900px) { #zoom img { width: 160%; } }
+
+  .hint { color: var(--muted); font-size: 12px; }
+  @media (max-width: 520px) { .hint { display: none; } header h1 { font-size: 14px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Loading…</h1>
+  <div class="tools">
+    <button id="btnZoom" title="Zoom into this page" aria-label="Zoom">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5M11 8v6M8 11h6"/></svg>
+    </button>
+    <a id="btnDownload" download><button title="Download PDF" aria-label="Download PDF" tabindex="-1">
+      <svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+    </button></a>
+    <button id="btnFull" title="Fullscreen" aria-label="Fullscreen">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+  </div>
+</header>
+
+<div id="stage">
+  <div id="book"></div>
+  <div id="status">Preparing pages…</div>
+</div>
+
+<footer>
+  <button id="btnPrev" aria-label="Previous page" disabled>
+    <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+  <span id="counter">– / –</span>
+  <button id="btnNext" aria-label="Next page">
+    <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+  </button>
+  <span class="hint">Drag a corner, click, or use ← →</span>
+  <div id="progress"><i></i></div>
+</footer>
+
+<div id="zoom" role="dialog" aria-label="Zoomed page">
+  <button class="close" aria-label="Close zoom">
+    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <img alt="">
+</div>
+
+<script src="lib/pdf.min.js"></script>
+<script src="lib/page-flip.browser.js"></script>
+<script>
+/* ============================================================
+   CONFIG — to swap documents, replace document.pdf (same name)
+   ============================================================ */
+const CONFIG = {
+  pdf: "document.pdf",   // the PDF in this folder
+  title: "",             // leave "" to use the PDF's own title
+  layout: "single",      // "single" = one page at a time, "spread" = two pages side by side on wide screens
+  flipTime: 700          // page-turn speed in ms
+};
+/* ============================================================ */
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "lib/pdf.worker.min.js";
+
+const $ = (id) => document.getElementById(id);
+const bookEl = $("book"), statusEl = $("status");
+let flip, total = 0, pageUrls = [];
+
+$("btnDownload").href = CONFIG.pdf;
+
+(async function init() {
+  try {
+    const pdf = await pdfjsLib.getDocument(CONFIG.pdf).promise;
+    total = pdf.numPages;
+
+    let title = CONFIG.title;
+    if (!title) {
+      try { title = (await pdf.getMetadata()).info.Title || ""; } catch (e) {}
+    }
+    title = title || CONFIG.pdf.replace(/\.pdf$/i, "");
+    $("title").textContent = title;
+    document.title = title;
+
+    // Page shape comes from page 1, so any size/orientation works.
+    const first = await pdf.getPage(1);
+    const vp1 = first.getViewport({ scale: 1 });
+    const w = vp1.width, h = vp1.height;
+
+    // Render resolution: sharp on retina, capped to keep phones happy.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const renderW = Math.round(Math.min(2400, Math.max(1400, window.innerWidth * dpr * 1.2)));
+
+    // Empty page shells first so the book appears immediately.
+    const shells = [];
+    for (let i = 1; i <= total; i++) {
+      const d = document.createElement("div");
+      d.className = "page loading";
+      if (i === 1 || i === total) d.dataset.density = "hard";
+      const img = document.createElement("img");
+      img.alt = "Page " + i;
+      d.appendChild(img);
+      bookEl.appendChild(d);
+      shells.push(d);
+    }
+
+    const single = CONFIG.layout !== "spread";
+    flip = new St.PageFlip(bookEl, {
+      width: Math.round(w), height: Math.round(h),
+      size: "stretch",
+      minWidth: single ? 100000 : 300,     // huge minWidth forces one-page mode
+      maxWidth: 4000, minHeight: 100, maxHeight: 4000,
+      usePortrait: true,
+      showCover: !single,
+      maxShadowOpacity: 0.4,
+      flippingTime: CONFIG.flipTime,
+      mobileScrollSupport: false,
+      autoSize: true
+    });
+    // Size the book to the page shape so it stays centred while flipping.
+    const fit = () => {
+      const st = $("stage"), cs = getComputedStyle(st);
+      const sw = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const sh = st.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const perRow = single ? 1 : (sw >= 600 ? 2 : 1);
+      bookEl.style.height = Math.floor(Math.min(sh, (sw / perRow) * h / w)) + "px";
+    };
+    fit();
+    window.addEventListener("resize", () => { fit(); flip && flip.update(); });
+    flip.loadFromHTML(shells);
+    flip.on("flip", update);
+    flip.on("changeOrientation", update);
+    statusEl.hidden = true;
+    update();
+
+    // Render pages in order (first pages appear first).
+    for (let i = 1; i <= total; i++) {
+      const page = i === 1 ? first : await pdf.getPage(i);
+      const vp = page.getViewport({ scale: renderW / page.getViewport({ scale: 1 }).width });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+      const url = URL.createObjectURL(blob);
+      pageUrls[i - 1] = url;
+      shells[i - 1].querySelector("img").src = url;
+      shells[i - 1].classList.remove("loading");
+      canvas.width = canvas.height = 0; // free memory
+      page.cleanup();
+    }
+  } catch (err) {
+    console.error(err);
+    statusEl.hidden = false;
+    statusEl.textContent = "Couldn't load " + CONFIG.pdf + ". Check the file is in this folder.";
+  }
+})();
+
+function update() {
+  if (!flip) return;
+  const i = flip.getCurrentPageIndex();
+  const portrait = flip.getOrientation() === "portrait";
+  let label = String(i + 1);
+  if (!portrait && i > 0 && i + 1 < total) label = (i + 1) + "–" + (i + 2);
+  $("counter").textContent = label + " / " + total;
+  $("btnPrev").disabled = i <= 0;
+  $("btnNext").disabled = portrait ? i >= total - 1 : i >= total - (total % 2 ? 1 : 2);
+  $("progress").firstElementChild.style.width = ((i + 1) / total * 100) + "%";
+}
+
+$("btnPrev").onclick = () => flip && flip.flipPrev();
+$("btnNext").onclick = () => flip && flip.flipNext();
+
+document.addEventListener("keydown", (e) => {
+  if (!flip) return;
+  if ($("zoom").classList.contains("open")) { if (e.key === "Escape") closeZoom(); return; }
+  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); flip.flipNext(); }
+  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); flip.flipPrev(); }
+  if (e.key === "Home") flip.flip(0);
+  if (e.key === "End") flip.flip(total - 1);
+});
+
+$("btnFull").onclick = () => {
+  const el = document.documentElement;
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (el.requestFullscreen) el.requestFullscreen();
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+};
+
+// Zoom: show current page at full resolution; drag or scroll to pan.
+const zoom = $("zoom"), zoomImg = zoom.querySelector("img");
+$("btnZoom").onclick = () => {
+  if (!flip) return;
+  const url = pageUrls[flip.getCurrentPageIndex()];
+  if (!url) return;
+  zoomImg.src = url;
+  zoom.classList.add("open");
+  requestAnimationFrame(() => { zoom.scrollLeft = (zoom.scrollWidth - zoom.clientWidth) / 2; zoom.scrollTop = 0; });
+};
+function closeZoom() { zoom.classList.remove("open"); }
+zoom.querySelector(".close").onclick = closeZoom;
+let drag = null;
+zoom.addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "mouse" || e.target.closest(".close")) return;
+  drag = { x: e.clientX, y: e.clientY, l: zoom.scrollLeft, t: zoom.scrollTop };
+  zoom.style.cursor = "grabbing";
+});
+window.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  zoom.scrollLeft = drag.l - (e.clientX - drag.x);
+  zoom.scrollTop = drag.t - (e.clientY - drag.y);
+});
+window.addEventListener("pointerup", () => { drag = null; zoom.style.cursor = ""; });
+</script>
+</body>
+</html>
